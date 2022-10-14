@@ -1,0 +1,68 @@
+clc;
+close all;
+clear all;
+SNRdB=[-3:35];
+nsub=100;
+numblocks=10;
+ber=zeros(size(SNRdB));
+SNR=zeros(size(SNRdB));
+%numRxAnt=2;
+%numTxAnt=2;
+taps=2;
+ncp=round(nsub/10);
+for L=1:numblocks
+bits1=randi([0,1],[1,nsub]);
+bits2=randi([0,1],[1,nsub]);
+%chnoise = zeros(numAnt,blocklength);
+H1=1/sqrt(2)*(randn(1,taps)+ j*randn(1,taps));
+H2=1/sqrt(2)*(randn(1,taps)+ j*randn(1,taps));
+hfreq1=fft(H1,nsub);
+hfreq2=fft(H2,nsub);
+chnoise=(randn(1,taps+nsub+ncp-1)+j*(randn(1,taps+nsub+ncp-1)));
+for k=1:length(SNRdB)
+SNR(k)=10^(SNRdB(k)/10);
+loadedbits1=sqrt(SNR(k))*(2*bits1-1);
+loadedbits2=sqrt(SNR(k))*(2*bits2-1);
+txsamples1=ifft(loadedbits1);
+txsamples2=ifft(loadedbits2);
+txsamplescp1=[txsamples1(nsub-ncp+1:nsub),txsamples1];
+txsamplescp2=[txsamples2(nsub-ncp+1:nsub),txsamples2];
+Rxbits11=conv(H1,txsamplescp1)+chnoise;
+Rxbits12=conv(H2,txsamplescp1)+chnoise;
+Rxbits22=conv(H2,txsamplescp2)+chnoise;
+Rxbits21=conv(H1,txsamplescp2)+chnoise;
+rxbitswithoutcp11=Rxbits11(ncp+1:ncp+nsub);
+rxbitswithoutcp12=Rxbits12(ncp+1:ncp+nsub);
+rxbitswithoutcp21=Rxbits21(ncp+1:ncp+nsub);
+rxbitswithoutcp22=Rxbits22(ncp+1:ncp+nsub);
+rxbitsfft11=fft(rxbitswithoutcp11,nsub);
+rxbitsfft12=fft(rxbitswithoutcp12,nsub);
+rxbitsfft21=fft(rxbitswithoutcp21,nsub);
+rxbitsfft22=fft(rxbitswithoutcp22,nsub);
+processedbits11=rxbitsfft11./hfreq1;
+processedbits12=rxbitsfft12./hfreq2;
+processedbits21=rxbitsfft21./hfreq1;
+processedbits22=rxbitsfft22./hfreq2;
+processedbits1=(processedbits11+ processedbits12);
+processedbits2=(processedbits21+ processedbits22);
+decodedbits=((real(processedbits1))>=0);
+ber(k)=ber(k)+sum(sum(decodedbits~=bits1));
+decodedbits=((real(processedbits2))>=0);
+ber(k)=ber(k)+sum(sum(decodedbits~=bits2));
+end
+end
+esnr=taps*SNR/nsub;
+dord=1;
+ber=ber/(numblocks*nsub);
+semilogy(SNRdB,ber,'b-s','linewidth',2.0);
+hold on;
+semilogy(SNRdB,nchoosek(2*dord-1,dord-1)*1/2^dord./SNR.^dord,'g-.','linewidth',2.0);
+hold on;
+semilogy(SNRdB,0.5*(1-sqrt(esnr./(2+esnr))),'r-.','linewidth',2.0);
+axis tight;
+hold off
+grid on;
+legend('MIMO-OFDM sim','MIMO-ODM theory','OFDM-theory');
+xlabel('SNR(dB)');
+ylabel('BER');
+title('BER vs SNR(dB');
